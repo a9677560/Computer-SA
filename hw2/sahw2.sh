@@ -2,7 +2,6 @@
 
 # store input files and hashes as hash table
 declare -A file_hashes=()
-declare -A hash_types=()
 hash_index=0
 file_index=0
 
@@ -36,7 +35,6 @@ do
 		exit 0
 		;;
 		--md5)
-		hash_type="md5"
 		for(( j=i+1; j<${#args[@]}; j++))
 		do
 			hash="${args[$j]}"
@@ -45,8 +43,19 @@ do
 				break
 			fi
 			hash_index=$((hash_index + 1))
-			file_hashes[$hash_index]="$hash"
-			hash_types[$hash_index]="md5"
+			file_hashes[$hash_index]="${hash}:md5"
+		done
+		;;
+		--sha256)
+		for(( j=i+1; j<${#args[@]}; j++))
+		do
+			hash="${args[$j]}"
+
+			if [[ "$hash" == -* ]]; then
+				break
+			fi
+			hash_index=$((hash_index + 1))
+			file_hashes[$hash_index]="${hash}:sha256"
 		done
 		;;
 		--*)
@@ -71,8 +80,7 @@ fi
 for file_hash in "${file_hashes[@]}"
 do
 	# Extract the input file and the hash value from the string
-	input_file="${file_hash%%:*}"
-	hash="${file_hash##*:}"
+	IFS=':' read -r input_file hash hash_type <<< "$file_hash"
 
 	# Check if the input file exists
 	if [[ ! -f "$input_file" ]]; then
@@ -81,11 +89,11 @@ do
 	fi
 	
 	# Calculate the actual MD5 hash of the input file
-	actual_hash=$(openssl md5 "$input_file" | awk '{print $2}')
+	actual_hash=$(openssl "$hash_type" "$input_file" | awk '{print $2}')
 	if [[ "$actual_hash" != "$hash" ]]; then
 		echo "Error: Invalid checksum."
 		exit 1
 	else 
-		echo "MD5 hash matched for file: $input_file"
+		echo "$hash_type hash matched for file: $input_file"
 	fi
 done
