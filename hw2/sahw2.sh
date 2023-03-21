@@ -1,72 +1,91 @@
 #!/bin/bash
 
+# store input files and hashes as hash table
+declare -A file_hashes=()
+declare -A hash_types=()
+hash_index=0
+file_index=0
+
+# 把每一個 argument 存入 array
+args=("$@")
+
 usage() {
 echo -n -e "\nUsage: sahw2.sh {--sha256 hashes ... | --md5 hashes ...} -i files ...\n\n--sha256: SHA256 hashes to validate input files.\n--md5: MD5 hashes to validate input files.\n-i: Input files.\n"
 }
 
-while getopts "hi:-:" opt; do
-    case "${opt}" in
-        h )
-            usage
-            exit 0
-            ;;
-        i )
-            input_file=${OPTARG}
-            ;;
-        - )
-            case "${OPTARG}" in
-                md5 )
-                    md5=true
-                    ;;
-                help )
-                    usage
-                    exit 0
-                    ;;
-		sha256 )
-		    sha256=true
-		    ;;
-                * )
-           	    echo "Error: Invalid arguments." 1>&2
-                    usage
-                    exit 1
-            esac
-            ;;
-        \? )
-            echo "Error: Invalid arguments." 1>&2
-            usage
-            exit 1
-            ;;
-        : )
-            echo "Invalid option: -${OPTARG} requires an argument" 1>&2
-            usage
-            exit 1
-            ;;
-    esac
-done
+# Loop through all the command line arguments
+for (( i=0; i<${#args[@]}; i++ ))
+do
+	key="${args[i]}"
+	case $key in 
+		-i)
+		# Loop through all the input files and add them to the array
+		for (( j=i+1; j<${#args[@]}; j++))
+		do
+			input_file="${args[$j]}"
+			
+			if [[ "$input_file" == -*  ]]; then
+				break
+			fi
+		file_index=$((file_index + 1))
+		file_hashes[$file_index]="$input_file:${file_hashes[$file_index]}"
+		done
+		;;
+		-h)
+		usage
+		exit 0
+		;;
+		--md5)
+		hash_type="md5"
+		for(( j=i+1; j<${#args[@]}; j++))
+		do
+			hash="${args[$j]}"
 
-# 如果 -h 選項或沒有指定輸入文件，顯示使用信息並退出
-if [[ -z "${input_file}" ]]; then
-	echo "Input file not specified" 1>&2
-	usage
-	exit 1
-fi
+			if [[ "$hash" == -* ]]; then
+				break
+			fi
+			hash_index=$((hash_index + 1))
+			file_hashes[$hash_index]="$hash"
+			hash_types[$hash_index]="md5"
+		done
+		;;
+		--*)
+		echo "Error: Invalid arguments." 1>&2
+		usage
+		exit 1
+		;;
+	esac
+done
 
 if [[ "${md5}" == true && "$sha256" == true ]]; then
 	echo "Error: Only one type of hash function is allowed." 1>&2
 	exit 1
 fi
 
-# 在這裡使用輸入文件
-echo "Using input file: ${input_file}"
-
-# 如果指定了 --md5 選項，計算 MD5 雜湊
-if [[ "${md5}" == true ]]; then
-    # md5 "${input_file}"
-    awk 'BEGIN {
-    system("md5 data.csv") | getline output
-    split(output, array, " ")
-    print array[1]
-}'
-
+if [[ "$hash_index" != "$file_index" ]]; then
+	echo "Error: Invalid values." 1>&2
+	exit 1
 fi
 
+# Loop through all the input files and hashes in the array
+for file_hash in "${file_hashes[@]}"
+do
+	# Extract the input file and the hash value from the string
+	input_file="${file_hash%%:*}"
+	hash="${file_hash##*:}"
+
+	# Check if the input file exists
+	if [[ ! -f "$input_file" ]]; then
+		echo "Error: Input file not found: $input_file"
+		exit 1
+	fi
+	
+	# Calculate the actual MD5 hash of the input file
+	actual_hash=$(openssl md5 "$input_file" | awk '{print $2}')
+	if [[ "$actual_hash" != "$hash" ]]; then
+		echo "Error: Invalid checksum."
+		exit 1
+	else 
+		echo "MD5 hash matched for file: $input_file"
+	fi
+done
