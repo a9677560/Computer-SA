@@ -2,6 +2,8 @@
 
 # store input files and hashes as hash table
 declare -A file_hashes=()
+input_files=()
+user=()
 hash_index=0
 file_index=0
 
@@ -95,5 +97,26 @@ do
 		exit 1
 	else 
 		echo "$hash_type hash matched for file: $input_file"
+		file_type=$(file -b "$input_file")
+
+		if [[ "$file_type" != *"JSON"* && "$file_type" != *"CSV"* ]]; then
+			echo "Error: Invalid file format."
+			exit 1	
+		fi
+
+		input_files=("${input_files[@]}" "$input_file")
+		temp_users=($(cat "${input_file}" | jq -r ".[] | .username"))
+		users=("${users[@]}" "${temp_users[@]}")
 	fi
+
 done
+
+echo -n "This script will create the following user(s): ${users[@]} "
+read -p "Do you want to continue? [y/n]" selection
+
+
+if [[ "$selection" == "y" ]]; then
+	# 建立使用者
+else
+	exit 0
+fi
