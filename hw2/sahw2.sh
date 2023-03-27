@@ -37,6 +37,7 @@ do
 		exit 0
 		;;
 		--md5)
+		md5=true
 		for(( j=i+1; j<${#args[@]}; j++))
 		do
 			hash="${args[$j]}"
@@ -49,6 +50,7 @@ do
 		done
 		;;
 		--sha256)
+		sha256=true
 		for(( j=i+1; j<${#args[@]}; j++))
 		do
 			hash="${args[$j]}"
@@ -68,7 +70,7 @@ do
 	esac
 done
 
-if [[ "${md5}" == true && "$sha256" == true ]]; then
+if [[ "$md5" == true && "$sha256" == true ]]; then
 	echo "Error: Only one type of hash function is allowed." 1>&2
 	exit 1
 fi
@@ -96,7 +98,7 @@ do
 		echo "Error: Invalid checksum."
 		exit 1
 	else 
-		echo "$hash_type hash matched for file: $input_file"
+		#echo "$hash_type hash matched for file: $input_file"
 		file_type=$(file -b "$input_file")
 
 		if [[ "$file_type" != *"JSON"* && "$file_type" != *"CSV"* ]]; then
@@ -117,6 +119,34 @@ read -p "Do you want to continue? [y/n]" selection
 
 if [[ "$selection" == "y" ]]; then
 	# 建立使用者
+	for input_file in "${input_files[@]}"; do
+		# Read input file and create arrays for username, password, shell, and groups
+		usernames=($(cat "$input_file" | jq -r ".[] | .username"))
+		passwords=($(cat "$input_file" | jq -r ".[] | .password"))
+		shells=($(cat "$input_file" | jq -r ".[] | .shell"))
+		groups=($(cat "$input_file" | jq -r '.[] | .groups | join(",")'))
+
+		# Create users
+		for i in "${!usernames[@]}"; do
+			#echo "User ${usernames[$i]} creating..."
+			# Check if user already exists
+			if id -u "${usernames[$i]}" >/dev/null 2>&1; then
+				echo "Warning: user ${usernames[$i]} already exists."
+			else
+				# Create user with specified data
+				echo "${passwords[$i]}" | pw useradd -n "${usernames[$i]}" -m -s "${shells[$i]}" -h 0
+				if [[ -n "${groups[$i]}" ]]; then
+					IFS=',' read -ra group_array <<< "${groups[$i]}"
+					for group in "${group_array[@]}"; do
+						#echo "正在加入群組 $group..."
+						pw usermod "${usernames[$i]}" -G "$group"
+					done
+				fi
+
+				#echo "使用者 ${usernames[$i]} 建立完成"
+			fi
+		done
+	done
 else
 	exit 0
 fi
