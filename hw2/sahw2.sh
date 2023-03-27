@@ -4,6 +4,10 @@
 declare -A file_hashes=()
 input_files=()
 user=()
+usernames=()
+passwords=()
+shells=()
+groups=()
 hash_index=0
 file_index=0
 
@@ -107,46 +111,58 @@ do
 		fi
 
 		input_files=("${input_files[@]}" "$input_file")
-		temp_users=($(cat "${input_file}" | jq -r ".[] | .username"))
-		users=("${users[@]}" "${temp_users[@]}")
+		if [[ "$file_type" == *"JSON"* ]]; then
+			usernames+=($(cat "$input_file" | jq -r ".[] | .username"))
+			passwords+=($(cat "$input_file" | jq -r ".[] | .password"))
+			shells+=($(cat "$input_file" | jq -r ".[] | .shell"))
+			temp_groups=($(cat "$input_file" | jq -r '.[] | .groups | join(",")'))
+			for i in "${!usernames[@]}"; do
+				# Change ',' to space
+				if echo "${temp_groups[$i]}" | grep -q ','; then
+					temp_groups[$i]=$(echo "${temp_groups[$i]}" | sed 's/,/ /g')
+				fi
+				groups+=("${temp_groups[$i]}")
+			done
+		elif [[ "$file_type" == *"CSV"* ]]; then
+			while IFS=',' read -r username password shell group || [[ -n "$line" ]]; do
+				if [[ "$username" != "username" ]]; then
+					usernames+=("$username")
+					passwords+=("$password")
+					shells+=("$shell")
+					groups+=("$group")
+				fi
+			done < "$input_file"
+		else
+			exit 1
+		fi
 	fi
 
 done
 
-echo -n "This script will create the following user(s): ${users[@]} "
+echo -n "This script will create the following user(s): ${usernames[@]} "
 read -p "Do you want to continue? [y/n]" selection
 
 
 if [[ "$selection" == "y" ]]; then
-	# 建立使用者
-	for input_file in "${input_files[@]}"; do
-		# Read input file and create arrays for username, password, shell, and groups
-		usernames=($(cat "$input_file" | jq -r ".[] | .username"))
-		passwords=($(cat "$input_file" | jq -r ".[] | .password"))
-		shells=($(cat "$input_file" | jq -r ".[] | .shell"))
-		groups=($(cat "$input_file" | jq -r '.[] | .groups | join(",")'))
-
-		# Create users
-		for i in "${!usernames[@]}"; do
-			#echo "User ${usernames[$i]} creating..."
-			# Check if user already exists
-			if id -u "${usernames[$i]}" >/dev/null 2>&1; then
-				echo "Warning: user ${usernames[$i]} already exists."
-			else
-				# Create user with specified data
-				echo "${passwords[$i]}" | pw useradd -n "${usernames[$i]}" -m -s "${shells[$i]}" -h 0
-				if [[ -n "${groups[$i]}" ]]; then
-					IFS=',' read -ra group_array <<< "${groups[$i]}"
-					for group in "${group_array[@]}"; do
-						#echo "正在加入群組 $group..."
-						pw usermod "${usernames[$i]}" -G "$group"
-					done
-				fi
-
-				#echo "使用者 ${usernames[$i]} 建立完成"
+	# Create users
+	for i in "${!usernames[@]}"; do
+		#echo "User ${usernames[$i]} creating..."
+		# Check if user already exists
+		if id -u "${usernames[$i]}" >/dev/null 2>&1; then
+			echo "Warning: user ${usernames[$i]} already exists."
+		else
+			# Create user with specified data
+			echo "${passwords[$i]}" | pw useradd -n "${usernames[$i]}" -m -s "${shells[$i]}" -h 0
+			# Create groups
+			if [[ -n "${groups[$i]}" ]]; then
+				read -ra group_array <<< "${groups[$i]}"
+				#echo "正在給 ${usernames[$i]} 加入群組..."
+				pw usermod "${usernames[$i]}" -G "$(IFS=','; echo "${group_array[@]}")"
 			fi
+
+			#echo "使用者 ${usernames[$i]} 建立完成"
+		fi
 		done
-	done
 else
 	exit 0
 fi
