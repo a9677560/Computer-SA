@@ -137,8 +137,8 @@ for ((i=0; i<${#file_hashes[@]}; i++)); do
 done
 
 user_string="${usernames[@]}"
-read -p "This script will create the following user(s): ${user_string} Do you want to continue? [y/n]" selection
-
+echo -n "This script will create the following user(s): ${user_string} Do you want to continue? [y/n]"
+read selection
 
 if [[ "$selection" == "y" ]]; then
 	# Create users
