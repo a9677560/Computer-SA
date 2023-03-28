@@ -90,21 +90,21 @@ for ((i=0; i<${#file_hashes[@]}; i++)); do
 	input_file="${input_files[$i]}"
 	# Check if the input file exists
 	if [[ ! -f "$input_file" ]]; then
-		echo "Error: Input file not found: $input_file"
+		echo "Error: Input file not found: $input_file" 1>&2
 		exit 1
 	fi
 	
 	# Calculate the actual MD5 hash of the input file
 	actual_hash=$(openssl "$hash_type" "$input_file" | awk '{print $2}')
 	if [[ "$actual_hash" != "$hash" ]]; then
-		echo -n "Error: Invalid checksum."
+		echo -n "Error: Invalid checksum." 1>&2
 		exit 1
 	else 
 		#echo "$hash_type hash matched for file: $input_file"
 		file_type=$(file -b "$input_file")
 
 		if [[ "$file_type" != *"JSON"* && "$file_type" != *"CSV"* ]]; then
-			echo -n "Error: Invalid file format."
+			echo -n "Error: Invalid file format." 1>&2
 			exit 1	
 		fi
 
@@ -136,8 +136,8 @@ for ((i=0; i<${#file_hashes[@]}; i++)); do
 
 done
 
-echo -n "This script will create the following user(s): ${usernames[@]} "
-read -p "Do you want to continue? [y/n]" selection
+user_string="${usernames[@]}"
+read -p "This script will create the following user(s): ${user_string} Do you want to continue? [y/n]" selection
 
 
 if [[ "$selection" == "y" ]]; then
