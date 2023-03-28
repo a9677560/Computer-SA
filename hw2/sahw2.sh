@@ -97,7 +97,7 @@ for ((i=0; i<"${#file_hashes[@]}"; i++)); do
 	# Calculate the actual MD5 hash of the input file
 	actual_hash=$(openssl "$hash_type" "$input_file" | awk '{print $2}')
 	if [[ "$actual_hash" != "$hash" ]]; then
-		echo -n "Error: Invalid checksum."
+		echo -n "Error: Invalid checksum." 1>&2
 		exit 1
 	else 
 		#echo "$hash_type hash matched for file: $input_file"
@@ -149,7 +149,7 @@ if [[ "$selection" == "y" ]]; then
 		#echo "User ${usernames[$i]} creating..."
 		# Check if user already exists
 		if id -u "${usernames[$i]}" >/dev/null 2>&1; then
-			echo -n "Warning: user ${usernames[$i]} already exists."
+			echo "Warning: user ${usernames[$i]} already exists."
 		else
 			# Create user with specified data
 			echo "${passwords[$i]}" | pw useradd -n "${usernames[$i]}" -m -s "${shells[$i]}" -h 0
