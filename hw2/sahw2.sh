@@ -84,7 +84,7 @@ if [[ "$hash_index" != "$file_index" ]]; then
 	exit 1
 fi
 # Loop through all the input files and hashes in the array
-for ((i=0; i<${#file_hashes[@]}; i++)); do
+for ((i=0; i<"${#file_hashes[@]}"; i++)); do
 	# Extract the input file and the hash value from the string
 	IFS=':' read -r hash hash_type <<< "${file_hashes[$i]}"
 	input_file="${input_files[$i]}"
@@ -97,7 +97,7 @@ for ((i=0; i<${#file_hashes[@]}; i++)); do
 	# Calculate the actual MD5 hash of the input file
 	actual_hash=$(openssl "$hash_type" "$input_file" | awk '{print $2}')
 	if [[ "$actual_hash" != "$hash" ]]; then
-		echo -n "Error: Invalid checksum." 1>&2
+		echo -n "Error: Invalid checksum."
 		exit 1
 	else 
 		#echo "$hash_type hash matched for file: $input_file"
@@ -109,16 +109,19 @@ for ((i=0; i<${#file_hashes[@]}; i++)); do
 		fi
 
 		if [[ "$file_type" == *"JSON"* ]]; then
-			usernames+=($(cat "$input_file" | jq -r ".[] | .username"))
-			passwords+=($(cat "$input_file" | jq -r ".[] | .password"))
-			shells+=($(cat "$input_file" | jq -r ".[] | .shell"))
+			temp_usernames=($(cat "$input_file" | jq -r ".[] | .username"))
+			temp_passwords=($(cat "$input_file" | jq -r ".[] | .password"))
+			temp_shells=($(cat "$input_file" | jq -r ".[] | .shell"))
 			temp_groups=($(cat "$input_file" | jq -r '.[] | .groups | join(",")'))
-			for i in "${!usernames[@]}"; do
+			for ((j=0; j<"${#temp_usernames[@]}"; j++)); do
 				# Change ',' to space
-				if echo "${temp_groups[$i]}" | grep -q ','; then
-					temp_groups[$i]=$(echo "${temp_groups[$i]}" | sed 's/,/ /g')
+				if echo "${temp_groups[$j]}" | grep -q ','; then
+					temp_groups[$j]=$(echo "${temp_groups[$j]}" | sed 's/,/ /g')
 				fi
-				groups+=("${temp_groups[$i]}")
+				usernames+=("${temp_usernames[$j]}")
+				passwords+=("${temp_passwords[$j]}")
+				shells+=("${temp_shells[$j]}")
+				groups+=("${temp_groups[$j]}")
 			done
 		elif [[ "$file_type" == *"CSV"* ]]; then
 			while IFS=',' read -r username password shell group || [[ -n "$line" ]]; do
@@ -154,6 +157,12 @@ if [[ "$selection" == "y" ]]; then
 			if [[ -n "${groups[$i]}" ]]; then
 				read -ra group_array <<< "${groups[$i]}"
 				#echo "正在給 ${usernames[$i]} 加入群組..."
+				# Check if group exists
+				for group in "${group_array[@]}"; do
+					if ! grep -q "^$group:" /etc/group; then
+						pw groupadd "$group"
+					fi
+				done
 				pw usermod "${usernames[$i]}" -G "$(IFS=','; echo "${group_array[@]}")"
 			fi
 
