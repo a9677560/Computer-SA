@@ -27,13 +27,13 @@ do
 		# Loop through all the input files and add them to the array
 		for (( j=i+1; j<${#args[@]}; j++))
 		do
-			input_file="${args[$j]}"
+		input_file="${args[$j]}"
 			
-			if [[ "$input_file" == -*  ]]; then
-				break
-			fi
+		if [[ "$input_file" == -*  ]]; then
+			break
+		fi
+		input_files[$file_index]="$input_file"
 		file_index=$((file_index + 1))
-		file_hashes[$file_index]="$input_file:${file_hashes[$file_index]}"
 		done
 		;;
 		-h)
@@ -49,8 +49,8 @@ do
 			if [[ "$hash" == -* ]]; then
 				break
 			fi
-			hash_index=$((hash_index + 1))
 			file_hashes[$hash_index]="${hash}:md5"
+			hash_index=$((hash_index + 1))
 		done
 		;;
 		--sha256)
@@ -62,12 +62,12 @@ do
 			if [[ "$hash" == -* ]]; then
 				break
 			fi
-			hash_index=$((hash_index + 1))
 			file_hashes[$hash_index]="${hash}:sha256"
+			hash_index=$((hash_index + 1))
 		done
 		;;
 		--*)
-		echo "Error: Invalid arguments." 1>&2
+		echo -n "Error: Invalid arguments." 1>&2
 		usage
 		exit 1
 		;;
@@ -75,21 +75,19 @@ do
 done
 
 if [[ "$md5" == true && "$sha256" == true ]]; then
-	echo "Error: Only one type of hash function is allowed." 1>&2
+	echo -n "Error: Only one type of hash function is allowed." 1>&2
 	exit 1
 fi
 
 if [[ "$hash_index" != "$file_index" ]]; then
-	echo "Error: Invalid values." 1>&2
+	echo -n "Error: Invalid values." 1>&2
 	exit 1
 fi
-
 # Loop through all the input files and hashes in the array
-for file_hash in "${file_hashes[@]}"
-do
+for ((i=0; i<${#file_hashes[@]}; i++)); do
 	# Extract the input file and the hash value from the string
-	IFS=':' read -r input_file hash hash_type <<< "$file_hash"
-
+	IFS=':' read -r hash hash_type <<< "${file_hashes[$i]}"
+	input_file="${input_files[$i]}"
 	# Check if the input file exists
 	if [[ ! -f "$input_file" ]]; then
 		echo "Error: Input file not found: $input_file"
@@ -99,18 +97,17 @@ do
 	# Calculate the actual MD5 hash of the input file
 	actual_hash=$(openssl "$hash_type" "$input_file" | awk '{print $2}')
 	if [[ "$actual_hash" != "$hash" ]]; then
-		echo "Error: Invalid checksum."
+		echo -n "Error: Invalid checksum."
 		exit 1
 	else 
 		#echo "$hash_type hash matched for file: $input_file"
 		file_type=$(file -b "$input_file")
 
 		if [[ "$file_type" != *"JSON"* && "$file_type" != *"CSV"* ]]; then
-			echo "Error: Invalid file format."
+			echo -n "Error: Invalid file format."
 			exit 1	
 		fi
 
-		input_files=("${input_files[@]}" "$input_file")
 		if [[ "$file_type" == *"JSON"* ]]; then
 			usernames+=($(cat "$input_file" | jq -r ".[] | .username"))
 			passwords+=($(cat "$input_file" | jq -r ".[] | .password"))
@@ -149,7 +146,7 @@ if [[ "$selection" == "y" ]]; then
 		#echo "User ${usernames[$i]} creating..."
 		# Check if user already exists
 		if id -u "${usernames[$i]}" >/dev/null 2>&1; then
-			echo "Warning: user ${usernames[$i]} already exists."
+			echo -n "Warning: user ${usernames[$i]} already exists."
 		else
 			# Create user with specified data
 			echo "${passwords[$i]}" | pw useradd -n "${usernames[$i]}" -m -s "${shells[$i]}" -h 0
