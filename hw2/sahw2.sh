@@ -140,7 +140,7 @@ for ((i=0; i<"${#file_hashes[@]}"; i++)); do
 done
 
 user_string="${usernames[@]}"
-echo -n "This script will create the following user(s): ${user_string} Do you want to continue? [y/n]"
+echo -n "This script will create the following user(s): ${user_string} Do you want to continue? [y/n]:"
 read selection
 
 if [[ "$selection" == "y" ]]; then
